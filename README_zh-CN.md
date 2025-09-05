@@ -17,15 +17,15 @@
     *   分析指定的 Go pprof 文件，并返回序列化的分析结果 (例如 Top N 列表或火焰图 JSON)。
     *   支持的 Profile 类型：
         *   `cpu`: 分析代码执行的 CPU 时间消耗，找出热点函数。
-        *   `heap`: 分析程序当前的内存使用情况（堆内存分配），找出内存占用高的对象和函数。
+        *   `heap`: 分析程序当前的内存使用情况（堆内存分配），找出内存占用高的对象和函数。增强了对象计数、分配位置和类型信息。
         *   `goroutine`: 显示所有当前 Goroutine 的堆栈信息，用于诊断死锁、泄漏或 Goroutine 过多的问题。
-        *   `allocs`: 分析程序运行期间的内存分配情况（包括已释放的），用于定位频繁分配内存的代码。(*暂未实现*)
+        *   `allocs`: 分析程序运行期间的内存分配情况（包括已释放的），用于定位频繁分配内存的代码。提供详细的分配位置和对象计数信息。
         *   `mutex`: 分析互斥锁的竞争情况，找出导致阻塞的锁。(*暂未实现*)
         *   `block`: 分析导致 Goroutine 阻塞的操作（如 channel 等待、系统调用等）。(*暂未实现*)
     *   支持的输出格式：`text`, `markdown`, `json` (Top N 列表), `flamegraph-json` (火焰图层级数据，默认)。
         *   `text`, `markdown`: 人类可读的文本或 Markdown 格式。
-        *   `json`: 以结构化 JSON 格式输出 Top N 结果 (已为 `cpu`, `heap`, `goroutine` 实现)。
-        *   `flamegraph-json`: 以层级化 JSON 格式输出火焰图数据，兼容 d3-flame-graph (已为 `cpu`, `heap` 实现，默认格式)。输出为紧凑格式。
+        *   `json`: 以结构化 JSON 格式输出 Top N 结果 (已为 `cpu`, `heap`, `goroutine`, `allocs` 实现)。
+        *   `flamegraph-json`: 以层级化 JSON 格式输出火焰图数据，兼容 d3-flame-graph (已为 `cpu`, `heap`, `allocs` 实现，默认格式)。输出为紧凑格式。
     *   可配置 Top N 结果数量 (`top_n`, 默认为 5，对 `text`, `markdown`, `json` 格式有效)。
 *   **`generate_flamegraph` 工具:**
     *   使用 `go tool pprof` 为指定的 pprof 文件生成火焰图 (SVG 格式)，将其保存到指定路径，并返回路径和 SVG 内容。
@@ -38,6 +38,12 @@
     *   **仅限 macOS:** 此工具仅在 macOS 上有效。
     *   **依赖项：** 需要 `go` 命令在系统的 PATH 中可用。
     *   **限制：** 服务器无法捕获后台 `pprof` 进程的错误。从远程 URL 下载的临时文件在进程终止前（通过 `disconnect_pprof_session` 手动终止或 MCP 服务器退出时）不会被自动清理。
+*   **`detect_memory_leaks` 工具:**
+    *   比较两个堆内存剖析快照以识别潜在的内存泄漏。
+    *   按对象类型和分配位置分析内存增长情况。
+    *   提供详细的内存增长统计数据，包括绝对值和百分比变化。
+    *   可配置增长阈值和结果数量限制。
+    *   通过比较在不同时间点获取的剖析文件来帮助识别内存泄漏。
 *   **`disconnect_pprof_session` 工具:**
     *   尝试使用 PID 终止先前由 `open_interactive_pprof` 启动的后台 `pprof` 进程。
     *   首先发送 Interrupt 信号，如果失败则发送 Kill 信号。
@@ -341,6 +347,20 @@ go install .
 }
 ```
 
+**示例：检测两个堆内存剖析文件之间的内存泄漏**
+
+```json
+{
+  "tool_name": "detect_memory_leaks",
+  "arguments": {
+    "old_profile_uri": "file:///path/to/your/heap_before.pprof",
+    "new_profile_uri": "file:///path/to/your/heap_after.pprof",
+    "threshold": 0.05,  // 5% 增长阈值
+    "limit": 15         // 显示前 15 个潜在泄漏点
+  }
+}
+```
+
 **示例：断开 Pprof 会话连接**
 
 ```json
@@ -354,8 +374,13 @@ go install .
 
 ## 未来改进 (TODO)
 
-*   实现 `allocs`, `mutex`, `block` profile 的完整分析逻辑。
-*   为 `allocs`, `mutex`, `block` profile 类型实现 `json` 输出格式。
+*   实现 `mutex`, `block` profile 的完整分析逻辑。
+*   为 `mutex`, `block` profile 类型实现 `json` 输出格式。
 *   在 MCP 结果中根据 `output_format` 设置合适的 MIME 类型。
 *   增加更健壮的错误处理和日志级别控制。
 *   ~~考虑支持远程 pprof 文件 URI (例如 `http://`, `https://`)。~~ (已完成)
+*   ~~实现 `allocs` profile 的完整分析逻辑。~~ (已完成)
+*   ~~为 `allocs` profile 类型实现 `json` 输出格式。~~ (已完成)
+*   ~~添加内存泄漏检测功能。~~ (已完成)
+*   为内存剖析添加时序分析功能，以跟踪多个快照的增长情况。
+*   实现差异火焰图以可视化剖析文件之间的变化。
