@@ -47,6 +47,19 @@ This is a Model Context Protocol (MCP) server implemented in Go, providing a too
 *   **`disconnect_pprof_session` Tool:**
     *   Attempts to terminate a background `pprof` process previously started by `open_interactive_pprof`, using its PID.
     *   Sends an Interrupt signal first, then a Kill signal if Interrupt fails.
+*   **`compare_profiles` Tool:**
+    *   Compares two profile files (e.g., baseline vs. target) to identify performance regressions or improvements.
+    *   Supports all profile types (cpu, heap, allocs, mutex, block).
+    *   Provides detailed diff statistics including improved/regressed functions, added/removed functions.
+    *   Visual indicators: 🔴 regression, 🟢 improvement, 🆕 added, ❌ removed.
+    *   Supports text, markdown, and JSON output formats.
+*   **`analyze_heap_time_series` Tool:**
+    *   Analyzes multiple heap profiles over time to identify memory growth trends and potential leaks.
+    *   Requires at least 3 heap profiles provided in chronological order.
+    *   Calculates growth rates (bytes, percentage, MB per minute).
+    *   Identifies trending object types with directional indicators (📈 increasing, 📉 decreasing, ➡️ stable).
+    *   Supports custom labels for each time point or auto-generates default labels.
+    *   Supports text, markdown, and JSON output formats.
 
 ## Installation (As a Library/Tool)
 
@@ -394,17 +407,20 @@ Once the server is connected, you can call the `analyze_pprof` and `generate_fla
 
 ## Future Improvements (TODO)
 
-*   Add time-series analysis for memory profiles to track growth over multiple snapshots.
-*   Implement differential flame graphs to visualize changes between profiles.
 *   Add MIME type handling in MCP results based on `output_format`.
 *   Add more robust error handling and logging level control.
+*   Add integration tests for end-to-end MCP tool interactions.
+*   Performance optimizations for large profile files (>1GB).
 
-## Recently Completed (v0.2.0)
+## Recently Completed (v0.3.0)
 
-*   ✅ ~~Implement full analysis logic for `mutex`, `block` profiles.~~ (Done)
-*   ✅ ~~Implement `json` output format for `mutex`, `block` profile types.~~ (Done)
+*   ✅ ~~Implement differential flame graphs to visualize changes between profiles.~~ (Done - `compare_profiles` tool)
+*   ✅ ~~Add time-series analysis for memory profiles to track growth over multiple snapshots.~~ (Done - `analyze_heap_time_series` tool)
+*   ✅ Add automated CI/CD with GitHub Actions testing on every PR.
+*   ✅ ~~Implement full analysis logic for `mutex`, `block` profiles.~~ (Done in v0.2.0)
+*   ✅ ~~Implement `json` output format for `mutex`, `block` profile types.~~ (Done in v0.2.0)
 *   ✅ Migrated to official [Model Context Protocol Go SDK](https://github.com/modelcontextprotocol/go-sdk).
-*   ✅ ~~Consider supporting remote pprof file URIs (e.g., `http://`, `https://`).~~ (Done)
-*   ✅ ~~Implement full analysis logic for `allocs` profiles.~~ (Done)
-*   ✅ ~~Implement `json` output format for `allocs` profile type.~~ (Done)
-*   ✅ ~~Add memory leak detection capabilities.~~ (Done)
+*   ✅ ~~Consider supporting remote pprof file URIs (e.g., `http://`, `https://`).~~ (Done in v0.2.0)
+*   ✅ ~~Implement full analysis logic for `allocs` profiles.~~ (Done in v0.2.0)
+*   ✅ ~~Implement `json` output format for `allocs` profile type.~~ (Done in v0.2.0)
+*   ✅ ~~Add memory leak detection capabilities.~~ (Done in v0.2.0)

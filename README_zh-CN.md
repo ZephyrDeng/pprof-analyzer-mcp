@@ -47,6 +47,19 @@
 *   **`disconnect_pprof_session` 工具:**
     *   尝试使用 PID 终止先前由 `open_interactive_pprof` 启动的后台 `pprof` 进程。
     *   首先发送 Interrupt 信号，如果失败则发送 Kill 信号。
+*   **`compare_profiles` 工具:**
+    *   比较两个 profile 文件（例如基线版本与目标版本）以识别性能回归或改进。
+    *   支持所有 profile 类型（cpu、heap、allocs、mutex、block）。
+    *   提供详细的差异统计，包括改进/回归函数、新增/移除函数。
+    *   视觉指示器：🔴 回归、🟢 改进、🆕 新增、❌ 移除。
+    *   支持 text、markdown 和 JSON 输出格式。
+*   **`analyze_heap_time_series` 工具:**
+    *   分析多个 heap profile 的时序数据以识别内存增长趋势和潜在泄漏。
+    *   需要至少 3 个按时间顺序提供的 heap profile。
+    *   计算增长率（字节、百分比、MB 每分钟）。
+    *   识别趋势对象类型，带有方向指示器（📈 增长、📉 下降、➡️ 稳定）。
+    *   支持为每个时间点提供自定义标签或自动生成默认标签。
+    *   支持 text、markdown 和 JSON 输出格式。
 
 ## 安装 (作为库/工具)
 
@@ -399,12 +412,15 @@ https://github.com/ZephyrDeng/pprof-analyzer-mcp/releases
 *   在 MCP 结果中根据 `output_format` 设置合适的 MIME 类型。
 *   增加更健壮的错误处理和日志级别控制。
 
-## 最近完成 (v0.2.0)
+## 最近完成 (v0.3.0)
 
-*   ✅ ~~实现 `mutex`, `block` profile 的完整分析逻辑。~~ (已完成)
-*   ✅ ~~为 `mutex`, `block` profile 类型实现 `json` 输出格式。~~ (已完成)
+*   ✅ ~~实现差异火焰图以可视化剖析文件之间的变化。~~ (已完成 - `compare_profiles` 工具)
+*   ✅ ~~为内存剖析添加时序分析功能，以跟踪多个快照的增长情况。~~ (已完成 - `analyze_heap_time_series` 工具)
+*   ✅ 添加自动化 CI/CD，在每次 PR 时运行 GitHub Actions 测试。
+*   ✅ ~~实现 `mutex`, `block` profile 的完整分析逻辑。~~ (v0.2.0 已完成)
+*   ✅ ~~为 `mutex`, `block` profile 类型实现 `json` 输出格式。~~ (v0.2.0 已完成)
 *   ✅ 迁移到官方 [Model Context Protocol Go SDK](https://github.com/modelcontextprotocol/go-sdk)。
-*   ✅ ~~考虑支持远程 pprof 文件 URI (例如 `http://`, `https://`)。~~ (已完成)
-*   ✅ ~~实现 `allocs` profile 的完整分析逻辑。~~ (已完成)
-*   ✅ ~~为 `allocs` profile 类型实现 `json` 输出格式。~~ (已完成)
-*   ✅ ~~添加内存泄漏检测功能。~~ (已完成)
+*   ✅ ~~考虑支持远程 pprof 文件 URI (例如 `http://`, `https://`)。~~ (v0.2.0 已完成)
+*   ✅ ~~实现 `allocs` profile 的完整分析逻辑。~~ (v0.2.0 已完成)
+*   ✅ ~~为 `allocs` profile 类型实现 `json` 输出格式。~~ (v0.2.0 已完成)
+*   ✅ ~~添加内存泄漏检测功能。~~ (v0.2.0 已完成)

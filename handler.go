@@ -579,3 +579,17 @@ func handleAnalyzeHeapTimeSeries(_ context.Context, _ *mcp.CallToolRequest, args
 		},
 	}, nil, nil
 }
+
+// getMimeTypeForFormat 根据输出格式返回对应的 MIME 类型
+func getMimeTypeForFormat(format string) string {
+	switch format {
+	case "text":
+		return "text/plain"
+	case "markdown":
+		return "text/markdown"
+	case "json", "flamegraph-json":
+		return "application/json"
+	default:
+		return "text/plain"
+	}
+}
