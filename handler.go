@@ -508,3 +508,74 @@ func handleCompareProfiles(_ context.Context, _ *mcp.CallToolRequest, args Compa
 		},
 	}, nil, nil
 }
+
+// AnalyzeHeapTimeSeriesArgs 定义 analyze_heap_time_series 工具的输入参数
+type AnalyzeHeapTimeSeriesArgs struct {
+	ProfileURIs []string `json:"profile_uris" jsonschema:"description=多个 heap profile 的 URI 数组（按时间顺序），支持 'file://', 'http://', 'https://' 协议"`
+	Labels      []string `json:"labels,omitempty" jsonschema:"description=每个时间点的标签数组（可选），长度必须与 profile_uris 相同"`
+	OutputFormat string   `json:"output_format,omitempty" jsonschema:"description=输出格式,enum=text,enum=markdown,enum=json,default=markdown"`
+}
+
+// handleAnalyzeHeapTimeSeries 处理内存时序分析的请求。
+func handleAnalyzeHeapTimeSeries(_ context.Context, _ *mcp.CallToolRequest, args AnalyzeHeapTimeSeriesArgs) (*mcp.CallToolResult, any, error) {
+	if len(args.ProfileURIs) < 3 {
+		return nil, nil, fmt.Errorf("至少需要 3 个 profile 来进行时序分析，当前只有 %d 个", len(args.ProfileURIs))
+	}
+
+	// 设置默认值
+	if args.OutputFormat == "" {
+		args.OutputFormat = "markdown"
+	}
+
+	// 如果没有提供标签，生成默认标签
+	labels := args.Labels
+	if len(labels) == 0 {
+		labels = make([]string, len(args.ProfileURIs))
+		for i := range args.ProfileURIs {
+			labels[i] = fmt.Sprintf("T%d", i+1)
+		}
+	} else if len(labels) != len(args.ProfileURIs) {
+		return nil, nil, fmt.Errorf("标签数量 (%d) 与 profile 数量 (%d) 不匹配", len(labels), len(args.ProfileURIs))
+	}
+
+	log.Printf("Handling analyze_heap_time_series: profiles=%d, format=%s", len(args.ProfileURIs), args.OutputFormat)
+
+	// 解析所有 profile
+	profiles := make([]*profile.Profile, len(args.ProfileURIs))
+	for i, uri := range args.ProfileURIs {
+		filePath, cleanup, err := getProfileAsFile(uri)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get profile file #%d: %w", i+1, err)
+		}
+		defer cleanup()
+
+		file, err := os.Open(filePath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to open profile file #%d '%s': %w", i+1, filePath, err)
+		}
+		defer file.Close()
+
+		prof, err := profile.Parse(file)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to parse profile file #%d '%s': %w", i+1, filePath, err)
+		}
+
+		profiles[i] = prof
+		log.Printf("Successfully parsed profile #%d: %d samples", i+1, len(prof.Sample))
+	}
+
+	// 执行时序分析
+	result, err := analyzer.AnalyzeHeapTimeSeries(profiles, labels, args.OutputFormat)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to analyze time series: %w", err)
+	}
+
+	log.Printf("Heap time series analysis completed successfully. Result length: %d", len(result))
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: result,
+			},
+		},
+	}, nil, nil
+}

@@ -51,6 +51,12 @@ func main() {
 		Description: "比较两个 profile 文件（如同一服务的不同版本），生成差异分析报告，识别性能回归或改进。",
 	}, handleCompareProfiles)
 
+	// analyze_heap_time_series 工具
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "analyze_heap_time_series",
+		Description: "分析多个 heap profile 的时序数据（至少 3 个），识别内存增长趋势和潜在的内存泄漏。",
+	}, handleAnalyzeHeapTimeSeries)
+
 	// 3. 设置信号处理程序以进行清理
 	setupSignalHandler()
 
