@@ -423,3 +423,88 @@ func handleDisconnectPprofSession(_ context.Context, _ *mcp.CallToolRequest, arg
 		},
 	}, nil, nil
 }
+
+// CompareProfilesArgs 定义 compare_profiles 工具的输入参数
+type CompareProfilesArgs struct {
+	BaselineProfileURI string  `json:"baseline_profile_uri" jsonschema:"description=基线 profile 的 URI (旧版本)，支持 'file://', 'http://', 'https://' 协议"`
+	TargetProfileURI   string  `json:"target_profile_uri" jsonschema:"description=目标 profile 的 URI (新版本)，支持 'file://', 'http://', 'https://' 协议"`
+	ProfileType        string  `json:"profile_type" jsonschema:"description=要比较的 pprof profile 的类型,enum=cpu,enum=heap,enum=allocs,enum=mutex,enum=block"`
+	TopN               float64 `json:"top_n,omitempty" jsonschema:"description=返回结果的数量上限, default=10"`
+	OutputFormat       string  `json:"output_format,omitempty" jsonschema:"description=输出格式,enum=text,enum=markdown,enum=json,default=markdown"`
+}
+
+// handleCompareProfiles 处理 profile 比较的请求。
+func handleCompareProfiles(_ context.Context, _ *mcp.CallToolRequest, args CompareProfilesArgs) (*mcp.CallToolResult, any, error) {
+	if args.BaselineProfileURI == "" {
+		return nil, nil, fmt.Errorf("missing required argument: baseline_profile_uri")
+	}
+	if args.TargetProfileURI == "" {
+		return nil, nil, fmt.Errorf("missing required argument: target_profile_uri")
+	}
+	if args.ProfileType == "" {
+		return nil, nil, fmt.Errorf("missing required argument: profile_type")
+	}
+
+	// 设置默认值
+	if args.TopN <= 0 {
+		args.TopN = 10
+	}
+	if args.OutputFormat == "" {
+		args.OutputFormat = "markdown"
+	}
+
+	topN := int(args.TopN)
+	log.Printf("Handling compare_profiles: Baseline=%s, Target=%s, Type=%s, TopN=%d, Format=%s",
+		args.BaselineProfileURI, args.TargetProfileURI, args.ProfileType, topN, args.OutputFormat)
+
+	// 获取基线 profile
+	baselinePath, baselineCleanup, err := getProfileAsFile(args.BaselineProfileURI)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get baseline profile file: %w", err)
+	}
+	defer baselineCleanup()
+
+	baselineFile, err := os.Open(baselinePath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to open baseline profile file '%s': %w", baselinePath, err)
+	}
+	defer baselineFile.Close()
+
+	baselineProf, err := profile.Parse(baselineFile)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse baseline profile file '%s': %w", baselinePath, err)
+	}
+
+	// 获取目标 profile
+	targetPath, targetCleanup, err := getProfileAsFile(args.TargetProfileURI)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get target profile file: %w", err)
+	}
+	defer targetCleanup()
+
+	targetFile, err := os.Open(targetPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to open target profile file '%s': %w", targetPath, err)
+	}
+	defer targetFile.Close()
+
+	targetProf, err := profile.Parse(targetFile)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse target profile file '%s': %w", targetPath, err)
+	}
+
+	// 执行比较
+	result, err := analyzer.CompareProfiles(baselineProf, targetProf, args.ProfileType, topN, args.OutputFormat)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to compare profiles: %w", err)
+	}
+
+	log.Printf("Profile comparison completed successfully. Result length: %d", len(result))
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: result,
+			},
+		},
+	}, nil, nil
+}

@@ -11,7 +11,7 @@ func main() {
 	// 1. 初始化 MCP 服务器
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "PprofAnalyzer",
-		Version: "0.2.0",
+		Version: "0.3.0",
 	}, nil)
 
 	// 2. 注册工具 - 使用泛型 AddTool 函数
@@ -44,6 +44,12 @@ func main() {
 		Name:        "disconnect_pprof_session",
 		Description: "尝试终止由 'open_interactive_pprof' 启动的指定后台 pprof 进程。",
 	}, handleDisconnectPprofSession)
+
+	// compare_profiles 工具
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "compare_profiles",
+		Description: "比较两个 profile 文件（如同一服务的不同版本），生成差异分析报告，识别性能回归或改进。",
+	}, handleCompareProfiles)
 
 	// 3. 设置信号处理程序以进行清理
 	setupSignalHandler()
