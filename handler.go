@@ -10,222 +10,134 @@ import (
 	"strings"
 
 	"github.com/google/pprof/profile"
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/ZephyrDeng/pprof-analyzer-mcp/analyzer"
 )
 
+// AnalyzePprofArgs 定义 analyze_pprof 工具的输入参数
+type AnalyzePprofArgs struct {
+	ProfileURI   string  `json:"profile_uri" jsonschema:"description=要分析的 pprof 文件的 URI (支持 'file://', 'http://', 'https://' 协议)"`
+	ProfileType  string  `json:"profile_type" jsonschema:"description=要分析的 pprof profile 的类型,enum=cpu,enum=heap,enum=goroutine,enum=allocs,enum=mutex,enum=block"`
+	TopN         float64 `json:"top_n,omitempty" jsonschema:"description=返回结果的数量上限 (例如 Top 5, Top 10),default=5"`
+	OutputFormat string  `json:"output_format,omitempty" jsonschema:"description=分析结果的输出格式,enum=text,enum=markdown,enum=json,enum=flamegraph-json,default=flamegraph-json"`
+}
+
 // handleAnalyzePprof 处理分析 pprof 文件的请求。
-func handleAnalyzePprof(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	args := request.Params.Arguments
-
-	profileURIStr, ok := args["profile_uri"].(string)
-	if !ok || profileURIStr == "" {
-		return nil, fmt.Errorf("missing or invalid required argument: profile_uri (string)")
+func handleAnalyzePprof(_ context.Context, _ *mcp.CallToolRequest, args AnalyzePprofArgs) (*mcp.CallToolResult, any, error) {
+	if args.ProfileURI == "" {
+		return nil, nil, fmt.Errorf("missing required argument: profile_uri")
 	}
-	profileType, ok := args["profile_type"].(string)
-	if !ok || profileType == "" {
-		return nil, fmt.Errorf("missing or invalid required argument: profile_type (string)")
-	}
-	outputFormat, ok := args["output_format"].(string)
-	if !ok {
-		outputFormat = "text"
-	}
-	topNFloat, ok := args["top_n"].(float64)
-	if !ok {
-		topNFloat = 5.0
-	}
-	topN := int(topNFloat)
-	if topN <= 0 {
-		topN = 5
+	if args.ProfileType == "" {
+		return nil, nil, fmt.Errorf("missing required argument: profile_type")
 	}
 
-	log.Printf("Handling analyze_pprof: URI=%s, Type=%s, TopN=%d, Format=%s", profileURIStr, profileType, topN, outputFormat)
+	// 设置默认值
+	if args.TopN <= 0 {
+		args.TopN = 5
+	}
+	if args.OutputFormat == "" {
+		args.OutputFormat = "flamegraph-json"
+	}
 
-	filePath, cleanup, err := getProfileAsFile(profileURIStr) // Calls function from profile_utils.go
+	topN := int(args.TopN)
+	log.Printf("Handling analyze_pprof: URI=%s, Type=%s, TopN=%d, Format=%s", args.ProfileURI, args.ProfileType, topN, args.OutputFormat)
+
+	filePath, cleanup, err := getProfileAsFile(args.ProfileURI)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get profile file: %w", err)
+		return nil, nil, fmt.Errorf("failed to get profile file: %w", err)
 	}
 	defer cleanup()
 
 	file, err := os.Open(filePath)
 	if err != nil {
-		log.Printf("Error opening profile file '%s' (might be temporary): %v", filePath, err)
-		return nil, fmt.Errorf("failed to open profile file '%s': %w", filePath, err)
+		log.Printf("Error opening profile file '%s': %v", filePath, err)
+		return nil, nil, fmt.Errorf("failed to open profile file '%s': %w", filePath, err)
 	}
 	defer file.Close()
 
 	prof, err := profile.Parse(file)
 	if err != nil {
 		log.Printf("Error parsing profile file '%s': %v", filePath, err)
-		return nil, fmt.Errorf("failed to parse profile file '%s': %w", filePath, err)
+		return nil, nil, fmt.Errorf("failed to parse profile file '%s': %w", filePath, err)
 	}
 	log.Printf("Successfully parsed profile file from path: %s", filePath)
 
 	var analysisResult string
 	var analysisErr error
 
-	switch profileType {
+	switch args.ProfileType {
 	case "cpu":
-		analysisResult, analysisErr = analyzer.AnalyzeCPUProfile(prof, topN, outputFormat)
+		analysisResult, analysisErr = analyzer.AnalyzeCPUProfile(prof, topN, args.OutputFormat)
 	case "heap":
-		analysisResult, analysisErr = analyzer.AnalyzeHeapProfile(prof, topN, outputFormat)
+		analysisResult, analysisErr = analyzer.AnalyzeHeapProfile(prof, topN, args.OutputFormat)
 	case "goroutine":
-		analysisResult, analysisErr = analyzer.AnalyzeGoroutineProfile(prof, topN, outputFormat)
+		analysisResult, analysisErr = analyzer.AnalyzeGoroutineProfile(prof, topN, args.OutputFormat)
 	case "allocs":
-		analysisResult, analysisErr = analyzer.AnalyzeAllocsProfile(prof, topN, outputFormat)
+		analysisResult, analysisErr = analyzer.AnalyzeAllocsProfile(prof, topN, args.OutputFormat)
 	case "mutex":
-		analysisResult, analysisErr = analyzer.AnalyzeMutexProfile(prof, topN, outputFormat)
+		analysisResult, analysisErr = analyzer.AnalyzeMutexProfile(prof, topN, args.OutputFormat)
 	case "block":
-		analysisResult, analysisErr = analyzer.AnalyzeBlockProfile(prof, topN, outputFormat)
+		analysisResult, analysisErr = analyzer.AnalyzeBlockProfile(prof, topN, args.OutputFormat)
 	default:
-		analysisErr = fmt.Errorf("unsupported profile type: '%s'", profileType)
+		analysisErr = fmt.Errorf("unsupported profile type: '%s'", args.ProfileType)
 	}
 
 	if analysisErr != nil {
-		log.Printf("Analysis error for type '%s': %v", profileType, analysisErr)
-		return nil, analysisErr
+		log.Printf("Analysis error for type '%s': %v", args.ProfileType, analysisErr)
+		return nil, nil, analysisErr
 	}
 
-	log.Printf("Analysis successful for type '%s'. Result length: %d", profileType, len(analysisResult))
+	log.Printf("Analysis successful for type '%s'. Result length: %d", args.ProfileType, len(analysisResult))
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			mcp.TextContent{
-				Type: "text",
+			&mcp.TextContent{
+				
 				Text: analysisResult,
 			},
 		},
-	}, nil
+	}, nil, nil
 }
 
-// handleDetectMemoryLeaks handles requests for memory leak detection.
-func handleDetectMemoryLeaks(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	args := request.Params.Arguments
-
-	oldProfileURIStr, ok := args["old_profile_uri"].(string)
-	if !ok || oldProfileURIStr == "" {
-		return nil, fmt.Errorf("missing or invalid required argument: old_profile_uri (string)")
-	}
-
-	newProfileURIStr, ok := args["new_profile_uri"].(string)
-	if !ok || newProfileURIStr == "" {
-		return nil, fmt.Errorf("missing or invalid required argument: new_profile_uri (string)")
-	}
-
-	thresholdFloat, ok := args["threshold"].(float64)
-	if !ok {
-		thresholdFloat = 0.1 // Default 10% growth
-	}
-
-	limitFloat, ok := args["limit"].(float64)
-	if !ok {
-		limitFloat = 10.0
-	}
-	limit := int(limitFloat)
-	if limit <= 0 {
-		limit = 10
-	}
-
-	log.Printf("Handling detect_memory_leaks: OldURI=%s, NewURI=%s, Threshold=%.2f, Limit=%d",
-		oldProfileURIStr, newProfileURIStr, thresholdFloat, limit)
-
-	// Get the old profile file
-	oldFilePath, oldCleanup, err := getProfileAsFile(oldProfileURIStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get old profile file: %w", err)
-	}
-	defer oldCleanup()
-
-	oldFile, err := os.Open(oldFilePath)
-	if err != nil {
-		log.Printf("Error opening old profile file '%s': %v", oldFilePath, err)
-		return nil, fmt.Errorf("failed to open old profile file '%s': %w", oldFilePath, err)
-	}
-	defer oldFile.Close()
-
-	oldProf, err := profile.Parse(oldFile)
-	if err != nil {
-		log.Printf("Error parsing old profile file '%s': %v", oldFilePath, err)
-		return nil, fmt.Errorf("failed to parse old profile file '%s': %w", oldFilePath, err)
-	}
-	log.Printf("Successfully parsed old profile file from path: %s", oldFilePath)
-
-	// Get the new profile file
-	newFilePath, newCleanup, err := getProfileAsFile(newProfileURIStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get new profile file: %w", err)
-	}
-	defer newCleanup()
-
-	newFile, err := os.Open(newFilePath)
-	if err != nil {
-		log.Printf("Error opening new profile file '%s': %v", newFilePath, err)
-		return nil, fmt.Errorf("failed to open new profile file '%s': %w", newFilePath, err)
-	}
-	defer newFile.Close()
-
-	newProf, err := profile.Parse(newFile)
-	if err != nil {
-		log.Printf("Error parsing new profile file '%s': %v", newFilePath, err)
-		return nil, fmt.Errorf("failed to parse new profile file '%s': %w", newFilePath, err)
-	}
-	log.Printf("Successfully parsed new profile file from path: %s", newFilePath)
-
-	// Detect memory leaks
-	result, err := analyzer.DetectPotentialMemoryLeaks(oldProf, newProf, thresholdFloat, limit)
-	if err != nil {
-		log.Printf("Error detecting memory leaks: %v", err)
-		return nil, fmt.Errorf("failed to detect memory leaks: %w", err)
-	}
-
-	log.Printf("Memory leak detection completed successfully. Result length: %d", len(result))
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			mcp.TextContent{
-				Type: "text",
-				Text: result,
-			},
-		},
-	}, nil
+// GenerateFlamegraphArgs 定义 generate_flamegraph 工具的输入参数
+type GenerateFlamegraphArgs struct {
+	ProfileURI    string `json:"profile_uri" jsonschema:"description=要生成火焰图的 pprof 文件的 URI (支持 'file://', 'http://', 'https://' 协议)"`
+	ProfileType   string `json:"profile_type" jsonschema:"description=要生成火焰图的 pprof profile 的类型,enum=cpu,enum=heap,enum=allocs,enum=goroutine,enum=mutex,enum=block"`
+	OutputSVGPath string `json:"output_svg_path" jsonschema:"description=生成的 SVG 火焰图文件的保存路径 (必须是绝对路径或相对于工作区的路径)"`
 }
 
-// handleGenerateFlamegraph handles requests to generate flame graphs.
-func handleGenerateFlamegraph(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	args := request.Params.Arguments
-
-	profileURIStr, ok := args["profile_uri"].(string)
-	if !ok || profileURIStr == "" {
-		return nil, fmt.Errorf("missing or invalid required argument: profile_uri (string)")
+// handleGenerateFlamegraph 处理生成火焰图的请求。
+func handleGenerateFlamegraph(_ context.Context, _ *mcp.CallToolRequest, args GenerateFlamegraphArgs) (*mcp.CallToolResult, any, error) {
+	if args.ProfileURI == "" {
+		return nil, nil, fmt.Errorf("missing required argument: profile_uri")
 	}
-	profileType, ok := args["profile_type"].(string)
-	if !ok || profileType == "" {
-		return nil, fmt.Errorf("missing or invalid required argument: profile_type (string)")
+	if args.ProfileType == "" {
+		return nil, nil, fmt.Errorf("missing required argument: profile_type")
 	}
-	outputSvgPath, ok := args["output_svg_path"].(string)
-	if !ok || outputSvgPath == "" {
-		return nil, fmt.Errorf("missing or invalid required argument: output_svg_path (string)")
+	if args.OutputSVGPath == "" {
+		return nil, nil, fmt.Errorf("missing required argument: output_svg_path")
 	}
 
-	log.Printf("Handling generate_flamegraph: URI=%s, Type=%s, Output=%s", profileURIStr, profileType, outputSvgPath)
+	log.Printf("Handling generate_flamegraph: URI=%s, Type=%s, Output=%s", args.ProfileURI, args.ProfileType, args.OutputSVGPath)
 
-	inputFilePath, cleanup, err := getProfileAsFile(profileURIStr) // Calls function from profile_utils.go
+	inputFilePath, cleanup, err := getProfileAsFile(args.ProfileURI)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get profile file for flamegraph: %w", err)
+		return nil, nil, fmt.Errorf("failed to get profile file for flamegraph: %w", err)
 	}
 	defer cleanup()
 
-	if !filepath.IsAbs(outputSvgPath) {
+	if !filepath.IsAbs(args.OutputSVGPath) {
 		cwd, err := os.Getwd()
 		if err != nil {
 			log.Printf("无法获取当前工作目录: %v", err)
 		} else {
-			outputSvgPath = filepath.Join(cwd, outputSvgPath)
-			log.Printf("将相对输出路径转换为绝对路径: %s", outputSvgPath)
+			args.OutputSVGPath = filepath.Join(cwd, args.OutputSVGPath)
+			log.Printf("将相对输出路径转换为绝对路径: %s", args.OutputSVGPath)
 		}
 	}
 
 	cmdArgs := []string{"tool", "pprof"}
-	switch profileType {
+	switch args.ProfileType {
 	case "heap":
 		cmdArgs = append(cmdArgs, "-inuse_space")
 	case "allocs":
@@ -233,9 +145,9 @@ func handleGenerateFlamegraph(ctx context.Context, request mcp.CallToolRequest) 
 	case "cpu", "goroutine", "mutex", "block":
 		// No extra flags needed
 	default:
-		return nil, fmt.Errorf("unsupported profile type for flamegraph: '%s'", profileType)
+		return nil, nil, fmt.Errorf("unsupported profile type for flamegraph: '%s'", args.ProfileType)
 	}
-	cmdArgs = append(cmdArgs, "-svg", "-output", outputSvgPath, inputFilePath)
+	cmdArgs = append(cmdArgs, "-svg", "-output", args.OutputSVGPath, inputFilePath)
 
 	log.Printf("Executing command: go %s", strings.Join(cmdArgs, " "))
 
@@ -248,45 +160,266 @@ func handleGenerateFlamegraph(ctx context.Context, request mcp.CallToolRequest) 
 			"- CentOS/Fedora: sudo yum install graphviz 或 sudo dnf install graphviz\n" +
 			"- Windows (Chocolatey): choco install graphviz"
 		log.Println(errMsg)
-		return nil, fmt.Errorf(errMsg)
+		return nil, nil, fmt.Errorf(errMsg)
 	}
 	log.Println("Graphviz (dot) found.")
 
-	cmd := exec.CommandContext(ctx, "go", cmdArgs...)
+	cmd := exec.CommandContext(context.Background(), "go", cmdArgs...)
 	cmdOutput, err := cmd.CombinedOutput()
 
 	if err != nil {
 		log.Printf("Error executing 'go tool pprof': %v\nOutput:\n%s", err, string(cmdOutput))
-		return nil, fmt.Errorf("failed to generate flamegraph: %w. Output: %s", err, string(cmdOutput))
+		return nil, nil, fmt.Errorf("failed to generate flamegraph: %w. Output: %s", err, string(cmdOutput))
 	}
 
-	log.Printf("Successfully generated flamegraph: %s", outputSvgPath)
+	log.Printf("Successfully generated flamegraph: %s", args.OutputSVGPath)
 	log.Printf("pprof output:\n%s", string(cmdOutput))
 
-	resultText := fmt.Sprintf("火焰图已成功生成并保存到: %s", outputSvgPath)
-	textContent := mcp.TextContent{
-		Type: "text",
-		Text: resultText,
-	}
+	resultText := fmt.Sprintf("火焰图已成功生成并保存到: %s", args.OutputSVGPath)
 
-	svgBytes, readErr := os.ReadFile(outputSvgPath)
+	svgBytes, readErr := os.ReadFile(args.OutputSVGPath)
 	if readErr != nil {
-		log.Printf("成功生成 SVG 文件 '%s' 但读取失败: %v", outputSvgPath, readErr)
+		log.Printf("成功生成 SVG 文件 '%s' 但读取失败: %v", args.OutputSVGPath, readErr)
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{textContent},
-		}, nil
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					
+					Text: resultText,
+				},
+			},
+		}, nil, nil
 	}
 
 	svgContentStr := string(svgBytes)
-	svgContent := mcp.TextContent{
-		Type: "text",
-		Text: svgContentStr,
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				
+				Text: resultText,
+			},
+			&mcp.TextContent{
+				
+				Text: svgContentStr,
+			},
+		},
+	}, nil, nil
+}
+
+// DetectMemoryLeaksArgs 定义 detect_memory_leaks 工具的输入参数
+type DetectMemoryLeaksArgs struct {
+	OldProfileURI string  `json:"old_profile_uri" jsonschema:"description=较早的 heap profile 的 URI，支持 'file://', 'http://', 'https://' 协议"`
+	NewProfileURI string  `json:"new_profile_uri" jsonschema:"description=较新的 heap profile 的 URI，支持 'file://', 'http://', 'https://' 协议"`
+	Threshold     float64 `json:"threshold,omitempty" jsonschema:"description=检测内存泄漏的增长阈值 (0.1 表示 10%),default=0.1"`
+	Limit         float64 `json:"limit,omitempty" jsonschema:"description=返回的潜在内存泄漏类型的最大数量,default=10"`
+}
+
+// handleDetectMemoryLeaks 处理内存泄漏检测的请求。
+func handleDetectMemoryLeaks(_ context.Context, _ *mcp.CallToolRequest, args DetectMemoryLeaksArgs) (*mcp.CallToolResult, any, error) {
+	if args.OldProfileURI == "" {
+		return nil, nil, fmt.Errorf("missing required argument: old_profile_uri")
 	}
+	if args.NewProfileURI == "" {
+		return nil, nil, fmt.Errorf("missing required argument: new_profile_uri")
+	}
+
+	// 设置默认值
+	if args.Threshold == 0 {
+		args.Threshold = 0.1 // Default 10% growth
+	}
+	if args.Limit == 0 {
+		args.Limit = 10.0
+	}
+
+	limit := int(args.Limit)
+	if limit <= 0 {
+		limit = 10
+	}
+
+	log.Printf("Handling detect_memory_leaks: OldURI=%s, NewURI=%s, Threshold=%.2f, Limit=%d",
+		args.OldProfileURI, args.NewProfileURI, args.Threshold, limit)
+
+	// Get the old profile file
+	oldFilePath, oldCleanup, err := getProfileAsFile(args.OldProfileURI)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get old profile file: %w", err)
+	}
+	defer oldCleanup()
+
+	oldFile, err := os.Open(oldFilePath)
+	if err != nil {
+		log.Printf("Error opening old profile file '%s': %v", oldFilePath, err)
+		return nil, nil, fmt.Errorf("failed to open old profile file '%s': %w", oldFilePath, err)
+	}
+	defer oldFile.Close()
+
+	oldProf, err := profile.Parse(oldFile)
+	if err != nil {
+		log.Printf("Error parsing old profile file '%s': %v", oldFilePath, err)
+		return nil, nil, fmt.Errorf("failed to parse old profile file '%s': %w", oldFilePath, err)
+	}
+	log.Printf("Successfully parsed old profile file from path: %s", oldFilePath)
+
+	// Get the new profile file
+	newFilePath, newCleanup, err := getProfileAsFile(args.NewProfileURI)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get new profile file: %w", err)
+	}
+	defer newCleanup()
+
+	newFile, err := os.Open(newFilePath)
+	if err != nil {
+		log.Printf("Error opening new profile file '%s': %v", newFilePath, err)
+		return nil, nil, fmt.Errorf("failed to open new profile file '%s': %w", newFilePath, err)
+	}
+	defer newFile.Close()
+
+	newProf, err := profile.Parse(newFile)
+	if err != nil {
+		log.Printf("Error parsing new profile file '%s': %v", newFilePath, err)
+		return nil, nil, fmt.Errorf("failed to parse new profile file '%s': %w", newFilePath, err)
+	}
+	log.Printf("Successfully parsed new profile file from path: %s", newFilePath)
+
+	// Detect memory leaks
+	result, err := analyzer.DetectPotentialMemoryLeaks(oldProf, newProf, args.Threshold, limit)
+	if err != nil {
+		log.Printf("Error detecting memory leaks: %v", err)
+		return nil, nil, fmt.Errorf("failed to detect memory leaks: %w", err)
+	}
+
+	log.Printf("Memory leak detection completed successfully. Result length: %d", len(result))
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				
+				Text: result,
+			},
+		},
+	}, nil, nil
+}
+
+// OpenInteractivePprofArgs 定义 open_interactive_pprof 工具的输入参数
+type OpenInteractivePprofArgs struct {
+	ProfileURI  string `json:"profile_uri" jsonschema:"description=要分析的 pprof 文件的 URI (支持 'file://', 'http://', 'https://' 或本地路径)"`
+	HTTPAddress string `json:"http_address,omitempty" jsonschema:"description=指定 pprof Web UI 的监听地址和端口 (例如 ':8081')，如果省略默认为 ':8081'"`
+}
+
+// handleOpenInteractivePprof 处理打开交互式 pprof 的请求。
+func handleOpenInteractivePprof(_ context.Context, _ *mcp.CallToolRequest, args OpenInteractivePprofArgs) (*mcp.CallToolResult, any, error) {
+	if args.ProfileURI == "" {
+		return nil, nil, fmt.Errorf("missing required argument: profile_uri")
+	}
+
+	httpAddress := args.HTTPAddress
+	if httpAddress == "" {
+		httpAddress = ":8081" // 默认端口
+		log.Printf("No http_address provided, using default: %s", httpAddress)
+	}
+
+	log.Printf("Handling open_interactive_pprof: URI=%s, Address=%s", args.ProfileURI, httpAddress)
+
+	inputFilePath, cleanup, err := getProfileAsFile(args.ProfileURI)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get profile file: %w", err)
+	}
+	// 注意：不能在这里 defer cleanup()，因为 pprof 进程需要持续访问文件
+
+	cmdArgs := []string{"tool", "pprof"}
+	cmdArgs = append(cmdArgs, fmt.Sprintf("-http=%s", httpAddress))
+	cmdArgs = append(cmdArgs, inputFilePath)
+
+	log.Printf("Preparing to execute command in background: go %s", strings.Join(cmdArgs, " "))
+
+	_, err = exec.LookPath("go")
+	if err != nil {
+		log.Println("Error: 'go' command not found in PATH.")
+		cleanup()
+		return nil, nil, fmt.Errorf("'go' command not found in PATH, cannot start pprof")
+	}
+
+	cmd := exec.CommandContext(context.Background(), "go", cmdArgs...)
+	err = cmd.Start()
+
+	if err != nil {
+		log.Printf("Error starting 'go tool pprof' in background: %v", err)
+		cleanup()
+		return nil, nil, fmt.Errorf("failed to start 'go tool pprof': %w", err)
+	}
+
+	pid := cmd.Process.Pid
+	pprofMutex.Lock()
+	runningPprofs[pid] = cmd.Process
+	pprofMutex.Unlock()
+
+	log.Printf("Successfully started 'go tool pprof' in background with PID: %d", pid)
+
+	resultText := fmt.Sprintf("已成功在后台启动 'go tool pprof' (PID: %d) 来分析 '%s'", pid, inputFilePath)
+	resultText += fmt.Sprintf("，监听地址约为 %s。", httpAddress)
+	resultText += "\n你可以使用 'disconnect_pprof_session' 工具并提供 PID 来尝试终止此进程。"
+	resultText += "\n注意：如果是远程 URL，下载的临时 pprof 文件在进程结束前不会被自动删除。"
+
+	log.Println(resultText)
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			textContent,
-			svgContent,
+			&mcp.TextContent{
+				
+				Text: resultText,
+			},
 		},
-	}, nil
+	}, nil, nil
+}
+
+// DisconnectPprofSessionArgs 定义 disconnect_pprof_session 工具的输入参数
+type DisconnectPprofSessionArgs struct {
+	PID         float64 `json:"pid" jsonschema:"description=要终止的后台 pprof 进程的 PID (由 'open_interactive_pprof' 返回)"`
+	HTTPAddress string  `json:"http_address,omitempty" jsonschema:"description=指定 pprof Web UI 的监听地址和端口 (例如 ':8081')，如果省略 pprof 会自动选择"`
+}
+
+// handleDisconnectPprofSession 处理断开 pprof 会话的请求。
+func handleDisconnectPprofSession(_ context.Context, _ *mcp.CallToolRequest, args DisconnectPprofSessionArgs) (*mcp.CallToolResult, any, error) {
+	if args.PID <= 0 {
+		return nil, nil, fmt.Errorf("invalid PID: %d", int(args.PID))
+	}
+
+	pid := int(args.PID)
+	log.Printf("Handling disconnect_pprof_session for PID: %d", pid)
+
+	pprofMutex.Lock()
+	process, exists := runningPprofs[pid]
+	if !exists {
+		pprofMutex.Unlock()
+		log.Printf("PID %d not found in running pprof sessions.", pid)
+		return nil, nil, fmt.Errorf("未找到 PID 为 %d 的正在运行的 pprof 会话", pid)
+	}
+	delete(runningPprofs, pid)
+	pprofMutex.Unlock()
+
+	log.Printf("Attempting to terminate process with PID: %d", pid)
+	err := process.Signal(os.Interrupt)
+	if err != nil {
+		log.Printf("Failed to send Interrupt signal to PID %d: %v. Trying Kill signal.", pid, err)
+		err = process.Signal(os.Kill)
+		if err != nil {
+			log.Printf("Failed to send Kill signal to PID %d: %v", pid, err)
+			return nil, nil, fmt.Errorf("尝试终止 PID %d 失败：%w", pid, err)
+		}
+	}
+
+	_, err = process.Wait()
+	if err != nil && !strings.Contains(err.Error(), "wait: no child processes") && !strings.Contains(err.Error(), "signal:") {
+		log.Printf("Warning: Error waiting for process PID %d after signaling: %v", pid, err)
+	}
+
+	resultText := fmt.Sprintf("已成功向 PID %d 发送终止信号。", pid)
+	log.Println(resultText)
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				
+				Text: resultText,
+			},
+		},
+	}, nil, nil
 }

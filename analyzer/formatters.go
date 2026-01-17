@@ -43,3 +43,25 @@ func FormatBytes(b int64) string {
 	}
 	return fmt.Sprintf("%.2f %cB", float64(b)/float64(div), "KMGTPE"[exp]) // Kilo, Mega, Giga, Tera, Peta, Exa
 }
+
+// formatNumber 格式化数字为可读字符串（带千分位）
+func formatNumber(n int64) string {
+	if n < 1000 {
+		return fmt.Sprintf("%d", n)
+	}
+	if n < 1000000 {
+		return fmt.Sprintf("%.1fK", float64(n)/1000)
+	}
+	if n < 1000000000 {
+		return fmt.Sprintf("%.1fM", float64(n)/1000000)
+	}
+	return fmt.Sprintf("%.1fG", float64(n)/1000000000)
+}
+
+// truncateString 截断字符串到指定长度
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-3] + "..."
+}

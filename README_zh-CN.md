@@ -9,7 +9,7 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/ZephyrDeng/pprof-analyzer-mcp)](https://golang.org)
 [![GoDoc](https://pkg.go.dev/badge/github.com/ZephyrDeng/pprof-analyzer-mcp)](https://pkg.go.dev/github.com/ZephyrDeng/pprof-analyzer-mcp)
 
-这是一个基于 Go 语言实现的模型上下文协议 (MCP) 服务器，提供了一个用于分析 Go pprof 性能剖析文件的工具。
+这是一个基于 Go 语言实现的模型上下文协议 (MCP) 服务器，提供了一个用于分析 Go pprof 性能剖析文件的工具。使用官方 [Model Context Protocol Go SDK](https://github.com/modelcontextprotocol/go-sdk) 构建。
 
 ## 功能
 
@@ -20,11 +20,11 @@
         *   `heap`: 分析程序当前的内存使用情况（堆内存分配），找出内存占用高的对象和函数。增强了对象计数、分配位置和类型信息。
         *   `goroutine`: 显示所有当前 Goroutine 的堆栈信息，用于诊断死锁、泄漏或 Goroutine 过多的问题。
         *   `allocs`: 分析程序运行期间的内存分配情况（包括已释放的），用于定位频繁分配内存的代码。提供详细的分配位置和对象计数信息。
-        *   `mutex`: 分析互斥锁的竞争情况，找出导致阻塞的锁。(*暂未实现*)
-        *   `block`: 分析导致 Goroutine 阻塞的操作（如 channel 等待、系统调用等）。(*暂未实现*)
+        *   `mutex`: 分析互斥锁的竞争情况，找出导致阻塞的锁。提供详细的统计信息，包括竞争次数、延迟时间和百分比。
+        *   `block`: 分析导致 Goroutine 阻塞的操作（如 channel 等待、系统调用等）。提供全面的阻塞统计，包括平均延迟计算。
     *   支持的输出格式：`text`, `markdown`, `json` (Top N 列表), `flamegraph-json` (火焰图层级数据，默认)。
         *   `text`, `markdown`: 人类可读的文本或 Markdown 格式。
-        *   `json`: 以结构化 JSON 格式输出 Top N 结果 (已为 `cpu`, `heap`, `goroutine`, `allocs` 实现)。
+        *   `json`: 以结构化 JSON 格式输出 Top N 结果 (已为 `cpu`, `heap`, `goroutine`, `allocs`, `mutex`, `block` 实现)。
         *   `flamegraph-json`: 以层级化 JSON 格式输出火焰图数据，兼容 d3-flame-graph (已为 `cpu`, `heap`, `allocs` 实现，默认格式)。输出为紧凑格式。
     *   可配置 Top N 结果数量 (`top_n`, 默认为 5，对 `text`, `markdown`, `json` 格式有效)。
 *   **`generate_flamegraph` 工具:**
@@ -115,34 +115,54 @@ go install .
 
 本项目使用 [GoReleaser](https://goreleaser.com/) 和 GitHub Actions 来自动化发布流程。当一个匹配 `v*` 模式（例如 `v0.1.0`, `v1.2.3`）的 Git 标签被推送到仓库时，会自动触发发布。
 
+**发布前检查清单：**
+
+在创建发布标签前，请确保：
+- ✅ 所有测试通过：`go test ./...`
+- ✅ 代码编译成功：`go build`
+- ✅ 文档是最新的（README、CHANGELOG 等）
+- ✅ 提交消息遵循 [Conventional Commits](https://www.conventionalcommits.org/) 格式
+
 **发布步骤：**
 
 1.  **进行更改：** 开发新功能或修复 Bug。
-2.  **提交更改：** 使用 [Conventional Commits](https://www.conventionalcommits.org/) 格式提交你的更改 (例如 `feat: ...`, `fix: ...`)。这对自动生成 Changelog 很重要。
+2.  **提交更改：** 使用 [Conventional Commits](https://www.conventionalcommits.org/) 格式提交你的更改 (例如 `feat: ...`, `fix: ...`, `docs: ...`)。这对自动生成 Changelog 很重要。
     ```bash
     git add .
     git commit -m "feat: 添加了很棒的新功能"
     # 或者
     git commit -m "fix: 解决了问题 #42"
+    # 或者
+    git commit -m "docs: 更新 README 说明新功能"
     ```
 3.  **推送更改：** 将你的提交推送到 GitHub 的主分支。
     ```bash
     git push origin main
     ```
-4.  **创建并推送标签：** 准备好发布时，创建一个新的 Git 标签并将其推送到 GitHub。
+4.  **运行发布前测试：** 可选，在打标签前本地运行测试：
     ```bash
-    # 示例：创建标签 v0.1.0
-    git tag v0.1.0
+    go test ./... -v
+    go build -v
+    ```
+5.  **创建并推送标签：** 准备好发布时，创建一个新的 Git 标签并将其推送到 GitHub。
+    ```bash
+    # 示例：创建标签 v0.2.0
+    git tag v0.2.0
 
     # 推送标签到 GitHub
-    git push origin v0.1.0
+    git push origin v0.2.0
     ```
-5.  **自动发布：** 推送标签将触发 `.github/workflows/release.yml` 中定义的 `GoReleaser` GitHub Action。此 Action 将会：
+6.  **自动发布：** 推送标签将触发 `.github/workflows/release.yml` 中定义的 `GoReleaser` GitHub Action。此 Action 将会：
     *   为 Linux、macOS 和 Windows (amd64 & arm64) 构建二进制文件。
     *   基于自上一个标签以来的 Conventional Commits 生成 Changelog。
     *   在 GitHub 上创建一个新的 Release，包含 Changelog，并将构建好的二进制文件和校验和文件作为附件上传。
 
-你可以在 GitHub 仓库的 "Actions" 标签页查看发布工作流的进度。
+**监控发布进度：**
+
+你可以在 GitHub 仓库的 "Actions" 标签页查看发布工作流的进度。完成后，发布将在以下地址可用：
+```
+https://github.com/ZephyrDeng/pprof-analyzer-mcp/releases
+```
 
 ## 配置 MCP 客户端
 
@@ -374,13 +394,17 @@ go install .
 
 ## 未来改进 (TODO)
 
-*   实现 `mutex`, `block` profile 的完整分析逻辑。
-*   为 `mutex`, `block` profile 类型实现 `json` 输出格式。
-*   在 MCP 结果中根据 `output_format` 设置合适的 MIME 类型。
-*   增加更健壮的错误处理和日志级别控制。
-*   ~~考虑支持远程 pprof 文件 URI (例如 `http://`, `https://`)。~~ (已完成)
-*   ~~实现 `allocs` profile 的完整分析逻辑。~~ (已完成)
-*   ~~为 `allocs` profile 类型实现 `json` 输出格式。~~ (已完成)
-*   ~~添加内存泄漏检测功能。~~ (已完成)
 *   为内存剖析添加时序分析功能，以跟踪多个快照的增长情况。
 *   实现差异火焰图以可视化剖析文件之间的变化。
+*   在 MCP 结果中根据 `output_format` 设置合适的 MIME 类型。
+*   增加更健壮的错误处理和日志级别控制。
+
+## 最近完成 (v0.2.0)
+
+*   ✅ ~~实现 `mutex`, `block` profile 的完整分析逻辑。~~ (已完成)
+*   ✅ ~~为 `mutex`, `block` profile 类型实现 `json` 输出格式。~~ (已完成)
+*   ✅ 迁移到官方 [Model Context Protocol Go SDK](https://github.com/modelcontextprotocol/go-sdk)。
+*   ✅ ~~考虑支持远程 pprof 文件 URI (例如 `http://`, `https://`)。~~ (已完成)
+*   ✅ ~~实现 `allocs` profile 的完整分析逻辑。~~ (已完成)
+*   ✅ ~~为 `allocs` profile 类型实现 `json` 输出格式。~~ (已完成)
+*   ✅ ~~添加内存泄漏检测功能。~~ (已完成)

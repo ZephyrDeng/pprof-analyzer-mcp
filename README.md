@@ -9,7 +9,7 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/ZephyrDeng/pprof-analyzer-mcp)](https://golang.org)
 [![GoDoc](https://pkg.go.dev/badge/github.com/ZephyrDeng/pprof-analyzer-mcp)](https://pkg.go.dev/github.com/ZephyrDeng/pprof-analyzer-mcp)
 
-This is a Model Context Protocol (MCP) server implemented in Go, providing a tool to analyze Go pprof performance profiles.
+This is a Model Context Protocol (MCP) server implemented in Go, providing a tool to analyze Go pprof performance profiles. Built with the official [Model Context Protocol Go SDK](https://github.com/modelcontextprotocol/go-sdk).
 
 ## Features
 
@@ -20,11 +20,11 @@ This is a Model Context Protocol (MCP) server implemented in Go, providing a too
         *   `heap`: Analyzes the current memory usage (heap allocations) to find objects and functions with high memory consumption. Enhanced with object count, allocation site, and type information.
         *   `goroutine`: Displays stack traces of all current goroutines, used for diagnosing deadlocks, leaks, or excessive goroutine usage.
         *   `allocs`: Analyzes memory allocations (including freed ones) during program execution to locate code with frequent allocations. Provides detailed allocation site and object count information.
-        *   `mutex`: Analyzes contention on mutexes to find locks causing blocking. (*Not yet implemented*)
-        *   `block`: Analyzes operations causing goroutine blocking (e.g., channel waits, system calls). (*Not yet implemented*)
+        *   `mutex`: Analyzes contention on mutexes to find locks causing blocking. Provides detailed statistics including contention counts, delay times, and percentages.
+        *   `block`: Analyzes operations causing goroutine blocking (e.g., channel waits, system calls). Provides comprehensive blocking statistics with average delay calculations.
     *   Supported Output Formats: `text`, `markdown`, `json` (Top N list), `flamegraph-json` (hierarchical flame graph data, default).
         *   `text`, `markdown`: Human-readable text or Markdown format.
-        *   `json`: Outputs Top N results in structured JSON format (implemented for `cpu`, `heap`, `goroutine`, `allocs`).
+        *   `json`: Outputs Top N results in structured JSON format (implemented for `cpu`, `heap`, `goroutine`, `allocs`, `mutex`, `block`).
         *   `flamegraph-json`: Outputs hierarchical flame graph data in JSON format, compatible with d3-flame-graph (implemented for `cpu`, `heap`, `allocs`, default format). Output is compact.
     *   Configurable number of Top N results (`top_n`, defaults to 5, effective for `text`, `markdown`, `json` formats).
 *   **`generate_flamegraph` Tool:**
@@ -115,34 +115,54 @@ Using Docker is a convenient way to run the server, as it bundles the necessary 
 
 This project uses [GoReleaser](https://goreleaser.com/) and GitHub Actions to automate the release process. Releases are triggered automatically when a Git tag matching the pattern `v*` (e.g., `v0.1.0`, `v1.2.3`) is pushed to the repository.
 
+**Pre-release Checklist:**
+
+Before creating a release tag, ensure:
+- ✅ All tests pass: `go test ./...`
+- ✅ Code compiles successfully: `go build`
+- ✅ Documentation is up to date (README, CHANGELOG, etc.)
+- ✅ Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) format
+
 **Release Steps:**
 
 1.  **Make Changes:** Develop new features or fix bugs.
-2.  **Commit Changes:** Commit your changes using [Conventional Commits](https://www.conventionalcommits.org/) format (e.g., `feat: ...`, `fix: ...`). This is important for automatic changelog generation.
+2.  **Commit Changes:** Commit your changes using [Conventional Commits](https://www.conventionalcommits.org/) format (e.g., `feat: ...`, `fix: ...`, `docs: ...`). This is important for automatic changelog generation.
     ```bash
     git add .
     git commit -m "feat: Add awesome new feature"
     # or
     git commit -m "fix: Resolve issue #42"
+    # or
+    git commit -m "docs: Update README for new feature"
     ```
 3.  **Push Changes:** Push your commits to the main branch on GitHub.
     ```bash
     git push origin main
     ```
-4.  **Create and Push Tag:** When ready to release, create a new Git tag and push it to GitHub.
+4.  **Run Pre-release Tests:** Optionally, run tests locally before tagging:
     ```bash
-    # Example: Create tag v0.1.0
-    git tag v0.1.0
+    go test ./... -v
+    go build -v
+    ```
+5.  **Create and Push Tag:** When ready to release, create a new Git tag and push it to GitHub.
+    ```bash
+    # Example: Create tag v0.2.0
+    git tag v0.2.0
 
     # Push the tag to GitHub
-    git push origin v0.1.0
+    git push origin v0.2.0
     ```
-5.  **Automatic Release:** Pushing the tag will trigger the `GoReleaser` GitHub Action defined in `.github/workflows/release.yml`. This action will:
+6.  **Automatic Release:** Pushing the tag will trigger the `GoReleaser` GitHub Action defined in `.github/workflows/release.yml`. This action will:
     *   Build binaries for Linux, macOS, and Windows (amd64 & arm64).
     *   Generate a changelog based on Conventional Commits since the last tag.
     *   Create a new GitHub Release with the changelog and attach the built binaries and checksums as assets.
 
-You can view the release workflow progress in the "Actions" tab of the GitHub repository.
+**Monitoring the Release:**
+
+You can view the release workflow progress in the "Actions" tab of the GitHub repository. Once complete, the release will be available at:
+```
+https://github.com/ZephyrDeng/pprof-analyzer-mcp/releases
+```
 
 ## Configuring the MCP Client
 
@@ -374,13 +394,17 @@ Once the server is connected, you can call the `analyze_pprof` and `generate_fla
 
 ## Future Improvements (TODO)
 
-*   Implement full analysis logic for `mutex`, `block` profiles.
-*   Implement `json` output format for `mutex`, `block` profile types.
-*   Set appropriate MIME types in MCP results based on `output_format`.
-*   Add more robust error handling and logging level control.
-*   ~~Consider supporting remote pprof file URIs (e.g., `http://`, `https://`).~~ (Done)
-*   ~~Implement full analysis logic for `allocs` profiles.~~ (Done)
-*   ~~Implement `json` output format for `allocs` profile type.~~ (Done)
-*   ~~Add memory leak detection capabilities.~~ (Done)
 *   Add time-series analysis for memory profiles to track growth over multiple snapshots.
 *   Implement differential flame graphs to visualize changes between profiles.
+*   Add MIME type handling in MCP results based on `output_format`.
+*   Add more robust error handling and logging level control.
+
+## Recently Completed (v0.2.0)
+
+*   ✅ ~~Implement full analysis logic for `mutex`, `block` profiles.~~ (Done)
+*   ✅ ~~Implement `json` output format for `mutex`, `block` profile types.~~ (Done)
+*   ✅ Migrated to official [Model Context Protocol Go SDK](https://github.com/modelcontextprotocol/go-sdk).
+*   ✅ ~~Consider supporting remote pprof file URIs (e.g., `http://`, `https://`).~~ (Done)
+*   ✅ ~~Implement full analysis logic for `allocs` profiles.~~ (Done)
+*   ✅ ~~Implement `json` output format for `allocs` profile type.~~ (Done)
+*   ✅ ~~Add memory leak detection capabilities.~~ (Done)
