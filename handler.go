@@ -17,10 +17,10 @@ import (
 
 // AnalyzePprofArgs 定义 analyze_pprof 工具的输入参数
 type AnalyzePprofArgs struct {
-	ProfileURI   string  `json:"profile_uri" jsonschema:"description=要分析的 pprof 文件的 URI (支持 'file://', 'http://', 'https://' 协议)"`
-	ProfileType  string  `json:"profile_type" jsonschema:"description=要分析的 pprof profile 的类型,enum=cpu,enum=heap,enum=goroutine,enum=allocs,enum=mutex,enum=block"`
-	TopN         float64 `json:"top_n,omitempty" jsonschema:"description=返回结果的数量上限 (例如 Top 5, Top 10),default=5"`
-	OutputFormat string  `json:"output_format,omitempty" jsonschema:"description=分析结果的输出格式,enum=text,enum=markdown,enum=json,enum=flamegraph-json,default=flamegraph-json"`
+	ProfileURI   string  `json:"profile_uri" jsonschema:"要分析的 pprof 文件的 URI (支持 'file://', 'http://', 'https://' 协议)"`
+	ProfileType  string  `json:"profile_type" jsonschema:"要分析的 pprof profile 的类型 (cpu, heap, goroutine, allocs, mutex, block)"`
+	TopN         float64 `json:"top_n,omitempty" jsonschema:"返回结果的数量上限 (例如 Top 5, Top 10)"`
+	OutputFormat string  `json:"output_format,omitempty" jsonschema:"分析结果的输出格式 (text, markdown, json, flamegraph-json)"`
 }
 
 // handleAnalyzePprof 处理分析 pprof 文件的请求。
@@ -101,9 +101,9 @@ func handleAnalyzePprof(_ context.Context, _ *mcp.CallToolRequest, args AnalyzeP
 
 // GenerateFlamegraphArgs 定义 generate_flamegraph 工具的输入参数
 type GenerateFlamegraphArgs struct {
-	ProfileURI    string `json:"profile_uri" jsonschema:"description=要生成火焰图的 pprof 文件的 URI (支持 'file://', 'http://', 'https://' 协议)"`
-	ProfileType   string `json:"profile_type" jsonschema:"description=要生成火焰图的 pprof profile 的类型,enum=cpu,enum=heap,enum=allocs,enum=goroutine,enum=mutex,enum=block"`
-	OutputSVGPath string `json:"output_svg_path" jsonschema:"description=生成的 SVG 火焰图文件的保存路径 (必须是绝对路径或相对于工作区的路径)"`
+	ProfileURI    string `json:"profile_uri" jsonschema:"要生成火焰图的 pprof 文件的 URI (支持 'file://', 'http://', 'https://' 协议)"`
+	ProfileType   string `json:"profile_type" jsonschema:"要生成火焰图的 pprof profile 的类型 (cpu, heap, allocs, goroutine, mutex, block)"`
+	OutputSVGPath string `json:"output_svg_path" jsonschema:"生成的 SVG 火焰图文件的保存路径 (必须是绝对路径或相对于工作区的路径)"`
 }
 
 // handleGenerateFlamegraph 处理生成火焰图的请求。
@@ -207,10 +207,10 @@ func handleGenerateFlamegraph(_ context.Context, _ *mcp.CallToolRequest, args Ge
 
 // DetectMemoryLeaksArgs 定义 detect_memory_leaks 工具的输入参数
 type DetectMemoryLeaksArgs struct {
-	OldProfileURI string  `json:"old_profile_uri" jsonschema:"description=较早的 heap profile 的 URI，支持 'file://', 'http://', 'https://' 协议"`
-	NewProfileURI string  `json:"new_profile_uri" jsonschema:"description=较新的 heap profile 的 URI，支持 'file://', 'http://', 'https://' 协议"`
-	Threshold     float64 `json:"threshold,omitempty" jsonschema:"description=检测内存泄漏的增长阈值 (0.1 表示 10%),default=0.1"`
-	Limit         float64 `json:"limit,omitempty" jsonschema:"description=返回的潜在内存泄漏类型的最大数量,default=10"`
+	OldProfileURI string  `json:"old_profile_uri" jsonschema:"较早的 heap profile 的 URI，支持 'file://', 'http://', 'https://' 协议"`
+	NewProfileURI string  `json:"new_profile_uri" jsonschema:"较新的 heap profile 的 URI，支持 'file://', 'http://', 'https://' 协议"`
+	Threshold     float64 `json:"threshold,omitempty" jsonschema:"检测内存泄漏的增长阈值 (0.1 表示 10%)"`
+	Limit         float64 `json:"limit,omitempty" jsonschema:"返回的潜在内存泄漏类型的最大数量"`
 }
 
 // handleDetectMemoryLeaks 处理内存泄漏检测的请求。
@@ -300,8 +300,8 @@ func handleDetectMemoryLeaks(_ context.Context, _ *mcp.CallToolRequest, args Det
 
 // OpenInteractivePprofArgs 定义 open_interactive_pprof 工具的输入参数
 type OpenInteractivePprofArgs struct {
-	ProfileURI  string `json:"profile_uri" jsonschema:"description=要分析的 pprof 文件的 URI (支持 'file://', 'http://', 'https://' 或本地路径)"`
-	HTTPAddress string `json:"http_address,omitempty" jsonschema:"description=指定 pprof Web UI 的监听地址和端口 (例如 ':8081')，如果省略默认为 ':8081'"`
+	ProfileURI  string `json:"profile_uri" jsonschema:"要分析的 pprof 文件的 URI (支持 'file://', 'http://', 'https://' 或本地路径)"`
+	HTTPAddress string `json:"http_address,omitempty" jsonschema:"指定 pprof Web UI 的监听地址和端口 (例如 ':8081')，如果省略默认为 ':8081'"`
 }
 
 // handleOpenInteractivePprof 处理打开交互式 pprof 的请求。
@@ -372,8 +372,8 @@ func handleOpenInteractivePprof(_ context.Context, _ *mcp.CallToolRequest, args 
 
 // DisconnectPprofSessionArgs 定义 disconnect_pprof_session 工具的输入参数
 type DisconnectPprofSessionArgs struct {
-	PID         float64 `json:"pid" jsonschema:"description=要终止的后台 pprof 进程的 PID (由 'open_interactive_pprof' 返回)"`
-	HTTPAddress string  `json:"http_address,omitempty" jsonschema:"description=指定 pprof Web UI 的监听地址和端口 (例如 ':8081')，如果省略 pprof 会自动选择"`
+	PID         float64 `json:"pid" jsonschema:"要终止的后台 pprof 进程的 PID (由 'open_interactive_pprof' 返回)"`
+	HTTPAddress string  `json:"http_address,omitempty" jsonschema:"指定 pprof Web UI 的监听地址和端口 (例如 ':8081')，如果省略 pprof 会自动选择"`
 }
 
 // handleDisconnectPprofSession 处理断开 pprof 会话的请求。
@@ -426,11 +426,11 @@ func handleDisconnectPprofSession(_ context.Context, _ *mcp.CallToolRequest, arg
 
 // CompareProfilesArgs 定义 compare_profiles 工具的输入参数
 type CompareProfilesArgs struct {
-	BaselineProfileURI string  `json:"baseline_profile_uri" jsonschema:"description=基线 profile 的 URI (旧版本)，支持 'file://', 'http://', 'https://' 协议"`
-	TargetProfileURI   string  `json:"target_profile_uri" jsonschema:"description=目标 profile 的 URI (新版本)，支持 'file://', 'http://', 'https://' 协议"`
-	ProfileType        string  `json:"profile_type" jsonschema:"description=要比较的 pprof profile 的类型,enum=cpu,enum=heap,enum=allocs,enum=mutex,enum=block"`
-	TopN               float64 `json:"top_n,omitempty" jsonschema:"description=返回结果的数量上限, default=10"`
-	OutputFormat       string  `json:"output_format,omitempty" jsonschema:"description=输出格式,enum=text,enum=markdown,enum=json,default=markdown"`
+	BaselineProfileURI string  `json:"baseline_profile_uri" jsonschema:"基线 profile 的 URI (旧版本)，支持 'file://', 'http://', 'https://' 协议"`
+	TargetProfileURI   string  `json:"target_profile_uri" jsonschema:"目标 profile 的 URI (新版本)，支持 'file://', 'http://', 'https://' 协议"`
+	ProfileType        string  `json:"profile_type" jsonschema:"要比较的 pprof profile 的类型 (cpu, heap, allocs, mutex, block)"`
+	TopN               float64 `json:"top_n,omitempty" jsonschema:"返回结果的数量上限"`
+	OutputFormat       string  `json:"output_format,omitempty" jsonschema:"输出格式 (text, markdown, json)"`
 }
 
 // handleCompareProfiles 处理 profile 比较的请求。
@@ -511,9 +511,9 @@ func handleCompareProfiles(_ context.Context, _ *mcp.CallToolRequest, args Compa
 
 // AnalyzeHeapTimeSeriesArgs 定义 analyze_heap_time_series 工具的输入参数
 type AnalyzeHeapTimeSeriesArgs struct {
-	ProfileURIs []string `json:"profile_uris" jsonschema:"description=多个 heap profile 的 URI 数组（按时间顺序），支持 'file://', 'http://', 'https://' 协议"`
-	Labels      []string `json:"labels,omitempty" jsonschema:"description=每个时间点的标签数组（可选），长度必须与 profile_uris 相同"`
-	OutputFormat string   `json:"output_format,omitempty" jsonschema:"description=输出格式,enum=text,enum=markdown,enum=json,default=markdown"`
+	ProfileURIs []string `json:"profile_uris" jsonschema:"多个 heap profile 的 URI 数组（按时间顺序），支持 'file://', 'http://', 'https://' 协议"`
+	Labels      []string `json:"labels,omitempty" jsonschema:"每个时间点的标签数组（可选），长度必须与 profile_uris 相同"`
+	OutputFormat string   `json:"output_format,omitempty" jsonschema:"输出格式 (text, markdown, json)"`
 }
 
 // handleAnalyzeHeapTimeSeries 处理内存时序分析的请求。
